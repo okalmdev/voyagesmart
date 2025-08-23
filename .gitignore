@@ -1,0 +1,66 @@
+# ======================================
+# Voyage Smart - Flutter + Node.js
+# ======================================
+
+# ---- Node.js ----
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+package-lock.json
+.env
+
+# ---- Flutter / Dart ----
+# Build outputs
+build/
+. dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+
+# Generated files
+*.lock
+*.log
+*.tmp
+
+# Android (Flutter)
+android/.gradle/
+android/app/build/
+android/local.properties
+android/key.properties
+
+# iOS (Flutter)
+ios/Flutter/Flutter.framework
+ios/Flutter/Flutter.podspec
+ios/Podfile.lock
+ios/Pods/
+ios/Runner/GeneratedPluginRegistrant.*
+ios/Flutter/App.framework
+ios/.generated/
+
+# macOS
+macos/Flutter/GeneratedPluginRegistrant.swift
+
+# Web
+web/.dart_tool/
+web/build/
+
+# Windows
+windows/flutter/ephemeral/
+windows/Runner/GeneratedPluginRegistrant.*
+
+# Linux
+linux/flutter/ephemeral/
+linux/runner/GeneratedPluginRegistrant.*
+
+# ---- IDEs ----
+.vscode/
+.idea/
+*.iml
+
+# ---- Misc ----
+.DS_Store
+Thumbs.db

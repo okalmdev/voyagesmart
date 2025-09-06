@@ -1,23 +1,52 @@
+// routes/taxiRoutes.js
 const express = require('express');
 const router = express.Router();
 const taxiController = require('../controllers/taxiController');
 
-// GET tous les taxis
+// Middleware (optionnel) : ex. pour authentification ou vérif rôle
+// const { verifyToken, isAdmin } = require('../middlewares/authMiddleware');
+
+/**
+ * @route   GET /api/taxis
+ * @desc    Récupérer tous les taxis
+ * @access  Public
+ */
 router.get('/', taxiController.getAllTaxis);
 
-// GET taxis disponibles pour un utilisateur (via sa réservation bus)
+/**
+ * @route   GET /api/taxis/disponibles/utilisateur/:userId
+ * @desc    Récupérer les taxis disponibles pour un utilisateur (basé sur sa réservation bus)
+ * @access  Utilisateur connecté
+ */
 router.get('/disponibles/utilisateur/:userId', taxiController.getAvailableTaxisByUser);
 
-// POST réserver un taxi
+/**
+ * @route   POST /api/taxis/reserver
+ * @desc    Réserver un taxi
+ * @access  Utilisateur connecté
+ */
 router.post('/reserver', taxiController.reserveTaxi);
 
-// GET toutes les réservations (admin uniquement)
+/**
+ * @route   GET /api/taxis/reservations/admin
+ * @desc    Récupérer toutes les réservations (admin uniquement)
+ * @access  Admin
+ */
+// router.get('/reservations/admin', verifyToken, isAdmin, taxiController.getAllReservations);
 router.get('/reservations/admin', taxiController.getAllReservations);
 
-// GET réservations d’un utilisateur
+/**
+ * @route   GET /api/taxis/reservations/utilisateur/:userId
+ * @desc    Récupérer les réservations d’un utilisateur
+ * @access  Utilisateur connecté
+ */
 router.get('/reservations/utilisateur/:userId', taxiController.getReservationsByUser);
 
-// PATCH annuler une réservation
+/**
+ * @route   PATCH /api/taxis/annuler/:reservationId
+ * @desc    Annuler une réservation
+ * @access  Utilisateur connecté
+ */
 router.patch('/annuler/:reservationId', taxiController.cancelReservation);
 
 module.exports = router;

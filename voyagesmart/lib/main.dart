@@ -62,6 +62,9 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int currentIndex = 0;
 
+  // ❗ Ajouter ici le userId courant pour l'utiliser dans TaxiScreen
+  final String currentUserId = '123'; // 🔑 Remplace par l'ID réel de l'utilisateur
+
   late final List<Widget> screens;
 
   @override
@@ -69,8 +72,8 @@ class _MainScreenState extends State<MainScreen> {
     super.initState();
     screens = [
       const HomeScreen(userName: 'Fahaddoul YOUSSOUFA'),
-      const BusSearchScreen(), // ⬅️ plus besoin de allTrips ici
-      const TaxiScreen(),
+      const BusSearchScreen(),
+      TaxiScreen(userId: currentUserId), // ✅ On fournit le userId obligatoire
       const HotelSearchScreen(),
       const ProfileScreen(userName: 'Fahaddoul YOUSSOUFA'),
     ];

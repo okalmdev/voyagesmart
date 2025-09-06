@@ -2,12 +2,19 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/hotel_model.dart';
 import '../models/bus_trip.dart';
-import '../models/taxi_model.dart'; //
+import '../models/taxi_model.dart';
 
+/// 🌍 Service centralisé pour gérer toutes les requêtes API de l'application.
+/// Contient l'authentification, la gestion des hôtels, bus et taxis.
 class ApiService {
   static const String baseUrl = 'http://192.168.1.6:5000/api';
 
-  // ---------- AUTH ----------
+  // ================= AUTH =================
+
+  /// 🔑 Connexion utilisateur
+  /// - [email] : email de l'utilisateur
+  /// - [password] : mot de passe
+  /// Retourne : un Map avec les infos utilisateur et token si succès
   static Future<Map<String, dynamic>> login(String email, String password) async {
     final response = await http.post(
       Uri.parse('$baseUrl/auth/login'),
@@ -21,13 +28,13 @@ class ApiService {
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
     } else {
-      throw Exception('Erreur de connexion');
+      throw Exception('❌ Erreur de connexion');
     }
   }
 
-  // ---------- HÔTELS ----------
+  // ================= HOTELS =================
 
-  /// 🔁 Tous les hôtels (sans filtre)
+  /// 🏨 Récupérer tous les hôtels (sans filtre)
   static Future<List<Hotel>> getAllHotels() async {
     final response = await http.get(Uri.parse('$baseUrl/hotels'));
 
@@ -35,11 +42,14 @@ class ApiService {
       final List<dynamic> jsonList = jsonDecode(response.body);
       return jsonList.map((json) => Hotel.fromJson(json)).toList();
     } else {
-      throw Exception("Erreur lors du chargement de tous les hôtels");
+      throw Exception("❌ Erreur lors du chargement de tous les hôtels");
     }
   }
 
   /// 🔍 Recherche d'hôtels par ville et dates
+  /// - [ville] : ville recherchée
+  /// - [dateArrivee] : date d'arrivée
+  /// - [dateDepart] : date de départ
   static Future<List<Hotel>> getHotelsByVilleEtDates({
     required String ville,
     required String dateArrivee,
@@ -56,39 +66,39 @@ class ApiService {
       final List<dynamic> jsonList = jsonDecode(response.body);
       return jsonList.map((json) => Hotel.fromJson(json)).toList();
     } else {
-      throw Exception("Erreur lors de la recherche d'hôtels à $ville");
+      throw Exception("❌ Erreur lors de la recherche d'hôtels à $ville");
     }
   }
 
   /// 🏨 Hôtels locaux uniquement (par ville, sans date)
   static Future<List<Hotel>> getLocalHotelsByVille(String ville) async {
-    final url = Uri.parse('$baseUrl/hotels/par-ville?ville=${Uri.encodeComponent(ville)}');
+    final url =
+    Uri.parse('$baseUrl/hotels/par-ville?ville=${Uri.encodeComponent(ville)}');
     final response = await http.get(url);
 
     if (response.statusCode == 200) {
       final List<dynamic> jsonList = jsonDecode(response.body);
       return jsonList.map((json) => Hotel.fromJson(json)).toList();
     } else {
-      throw Exception("Erreur lors du chargement des hôtels locaux à $ville");
+      throw Exception("❌ Erreur lors du chargement des hôtels locaux à $ville");
     }
   }
 
+  // ================= BUS =================
 
-  // ---------- BUS ----------
-  // ---------- BUS ----------
+  /// 🚌 Récupérer tous les trajets de bus
   static Future<List<BusTrip>> getBusTrips() async {
-    // Récupère tous les voyages
     final response = await http.get(Uri.parse('$baseUrl/voyages'));
     if (response.statusCode == 200) {
       final List<dynamic> jsonList = jsonDecode(response.body);
       return jsonList.map((json) => BusTrip.fromJson(json)).toList();
     } else {
-      throw Exception("Erreur lors du chargement des trajets de bus");
+      throw Exception("❌ Erreur lors du chargement des trajets de bus");
     }
   }
 
+  /// 🚌 Récupérer tous les trajets depuis une ville donnée
   static Future<List<BusTrip>> getLocalBusTripsByLocation(String ville) async {
-    // Récupère tous les départs depuis une ville donnée (pour le bouton switch géoloc)
     final response = await http.get(
       Uri.parse('$baseUrl/departs/${Uri.encodeComponent(ville)}'),
     );
@@ -96,10 +106,14 @@ class ApiService {
       final List<dynamic> jsonList = jsonDecode(response.body);
       return jsonList.map((json) => BusTrip.fromJson(json)).toList();
     } else {
-      throw Exception("Erreur lors du chargement des trajets pour $ville");
+      throw Exception("❌ Erreur lors du chargement des trajets pour $ville");
     }
   }
 
+  /// 🔍 Recherche de trajets de bus par critères
+  /// - [villeDepart] : ville de départ
+  /// - [villeArrivee] : ville d’arrivée
+  /// - [dateDepart] : date du trajet
   static Future<List<BusTrip>> searchBusTrips({
     required String villeDepart,
     required String villeArrivee,
@@ -112,42 +126,31 @@ class ApiService {
         "date_depart": dateDepart,
       };
 
-      print("📤 Body envoyé: ${jsonEncode(body)}");
-
       final response = await http.post(
         Uri.parse('$baseUrl/bus/recherche'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(body),
       );
 
-      print("📥 Status: ${response.statusCode}");
-      print("📥 Réponse brute: ${response.body}");
-
       if (response.statusCode == 200) {
-        // ✅ Nouvelle vérification : si le corps est vide, on retourne une liste vide
         if (response.body.isEmpty) {
-          print("⚠️ Réponse vide du serveur, aucun résultat.");
+          // ✅ Réponse vide → aucun trajet trouvé
           return [];
         }
 
         final decoded = jsonDecode(response.body);
 
-        // ✅ Gère le cas où le serveur renvoie un message au lieu de données
         if (decoded is Map && decoded.containsKey("message")) {
-          print("ℹ️ Message du serveur: ${decoded['message']}");
+          // ✅ Réponse informative du serveur (pas de résultats)
           return [];
-        }
-        // Gère le cas où la réponse est une liste
-        else if (decoded is List) {
+        } else if (decoded is List) {
+          // ✅ Liste de trajets
           return decoded.map((json) => BusTrip.fromJson(json)).toList();
-        }
-        // Gère le cas où la réponse est un objet avec une clé "data"
-        else if (decoded is Map && decoded.containsKey("data")) {
+        } else if (decoded is Map && decoded.containsKey("data")) {
+          // ✅ Objet contenant "data"
           final List<dynamic> jsonList = decoded["data"];
           return jsonList.map((json) => BusTrip.fromJson(json)).toList();
-        }
-        // Cas non géré, on lève une exception pour les autres formats
-        else {
+        } else {
           throw Exception("⚠️ Format inattendu: $decoded");
         }
       } else {
@@ -158,30 +161,29 @@ class ApiService {
     }
   }
 
-
+  /// 📅 Récupérer les programmes du jour
   static Future<List<BusTrip>> getDailyBusPrograms() async {
-    // Programmes du jour
     final response = await http.get(Uri.parse('$baseUrl/programmes-du-jour'));
     if (response.statusCode == 200) {
       final List<dynamic> jsonList = jsonDecode(response.body);
       return jsonList.map((json) => BusTrip.fromJson(json)).toList();
     } else {
-      throw Exception("Erreur lors du chargement des programmes du jour");
+      throw Exception("❌ Erreur lors du chargement des programmes du jour");
     }
   }
 
+  /// 🚌 Récupérer un programme de bus par son ID
   static Future<BusTrip> getBusProgramById(int busId) async {
-    // Programme d'un bus par ID
     final response = await http.get(Uri.parse('$baseUrl/programme/$busId'));
     if (response.statusCode == 200) {
       return BusTrip.fromJson(jsonDecode(response.body));
     } else {
-      throw Exception("Erreur lors du chargement du programme du bus");
+      throw Exception("❌ Erreur lors du chargement du programme du bus");
     }
   }
 
+  /// 🏢 Récupérer le programme d’une compagnie
   static Future<List<BusTrip>> getCompanyBusProgram(String nomCompagnie) async {
-    // Programme par compagnie
     final response = await http.get(
       Uri.parse('$baseUrl/compagnie/${Uri.encodeComponent(nomCompagnie)}'),
     );
@@ -189,83 +191,42 @@ class ApiService {
       final List<dynamic> jsonList = jsonDecode(response.body);
       return jsonList.map((json) => BusTrip.fromJson(json)).toList();
     } else {
-      throw Exception("Erreur lors du chargement du programme de la compagnie");
+      throw Exception("❌ Erreur lors du chargement du programme de la compagnie");
     }
   }
-  // Accès au 'baseUrl' et à l'userId de l'utilisateur.
 
-  static Future<List<String>> reserveBus({
-    required String tripId,
-    required List<int> seats,
-    required String userId,
-    required double pricePerSeat,
+  /// 🚌 Réserver un trajet de bus
+  static Future<Map<String, dynamic>> reserveBus({
+    required int utilisateurId,
+    required int voyageId,
+    required String dateReservation,
+    required List<String> numeroPlace, // <-- changer ici
+    required double prix,
   }) async {
-    final List<String> reservationIds = [];
+    final url = Uri.parse('$baseUrl/bus/reserver');
 
-    try {
-      for (int seatNumber in seats) {
-        final url = Uri.parse('$baseUrl/reserver');
-        final headers = {'Content-Type': 'application/json'};
-        final body = jsonEncode({
-          "voyage_id": tripId,
-          "numero_place": seatNumber.toString(),
-          "utilisateur_id": userId,
-          "date_reservation": DateTime.now().toIso8601String().split('T')[0],
-          "prix": pricePerSeat,
-        });
+    final response = await http.post(
+      url,
+      headers: {"Content-Type": "application/json"},
+      body: jsonEncode({
+        "utilisateur_id": utilisateurId,
+        "voyage_id": voyageId,
+        "date_reservation": dateReservation,
+        "numero_place": numeroPlace, // envoie la liste
+        "prix": prix,
+      }),
+    );
 
-        final response = await http.post(url, headers: headers, body: body);
-
-        // ✅ VÉRIFIER LE CONTENU DE LA RÉPONSE AVANT JSON DECODE
-        if (response.statusCode == 201) {
-          if (response.body.isEmpty) {
-            throw Exception("Réponse vide du serveur pour le siège $seatNumber");
-          }
-
-          try {
-            final data = jsonDecode(response.body);
-            if (data['reservation_id'] != null) {
-              reservationIds.add(data['reservation_id'].toString());
-            } else {
-              throw Exception("ID de réservation manquant dans la réponse");
-            }
-          } catch (e) {
-            print("Réponse brute du serveur: ${response.body}");
-            throw Exception("Format JSON invalide pour le siège $seatNumber: $e");
-          }
-        } else {
-          // Gestion d'erreur avec vérification JSON
-          String errorMessage = "Erreur siège $seatNumber";
-
-          if (response.body.isNotEmpty) {
-            try {
-              final errorData = jsonDecode(response.body);
-              errorMessage = errorData['erreur'] ?? errorMessage;
-            } catch (e) {
-              errorMessage = "Erreur serveur (statut: ${response.statusCode})";
-            }
-          }
-
-          // Annuler les réservations déjà faites
-          for (String id in reservationIds) {
-            try {
-              await cancelReservation(id);
-            } catch (e) {
-              print("Erreur annulation $id: $e");
-            }
-          }
-
-          throw Exception(errorMessage);
-        }
-      }
-
-      return reservationIds;
-    } catch (error) {
-      throw Exception("Échec réservation: $error");
+    if (response.statusCode == 201) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception("❌ Erreur réservation: ${response.statusCode} - ${response.body}");
     }
   }
 
-// Méthode pour annuler une réservation
+
+
+  /// ❌ Annuler une réservation de bus
   static Future<void> cancelReservation(String reservationId) async {
     try {
       final url = Uri.parse('$baseUrl/annuler/$reservationId');
@@ -284,67 +245,90 @@ class ApiService {
         throw Exception(errorMsg);
       }
     } catch (e) {
-      throw Exception('Erreur annulation: $e');
+      throw Exception('❌ Erreur annulation: $e');
     }
   }
+
+  /// ✅ Finaliser une réservation (après paiement)
   static Future<void> finishBusReservation(int reservationId) async {
-    // Terminer une réservation
     final response = await http.patch(
       Uri.parse('$baseUrl/terminer/$reservationId'),
     );
     if (response.statusCode != 200) {
-      throw Exception("Erreur lors de la finalisation de la réservation");
+      throw Exception("❌ Erreur lors de la finalisation de la réservation");
     }
   }
 
+  // ================= TAXIS =================
 
-  // ---------- TAXI ----------
-  static Future<List<Taxi>> getAvailableTaxis() async {
-    final response = await http.get(Uri.parse('$baseUrl/taxi'));
+  /// 🚕 Récupérer tous les taxis
+  static Future<List<Taxi>> getAllTaxis() async {
+    final response = await http.get(Uri.parse('$baseUrl/taxis'));
     if (response.statusCode == 200) {
       final List<dynamic> jsonList = jsonDecode(response.body);
       return jsonList.map((json) => Taxi.fromJson(json)).toList();
     } else {
-      throw Exception("Erreur lors du chargement des taxis disponibles");
+      throw Exception("❌ Erreur lors du chargement des taxis");
     }
   }
 
-  static Future<List<Taxi>> getLocalTaxisByLocation(String location) async {
-    final response = await http.get(Uri.parse('$baseUrl/taxi/local?city=${Uri.encodeComponent(location)}'));
+  /// 🚕 Récupérer les taxis disponibles pour un utilisateur
+  static Future<List<Taxi>> getAvailableTaxisByUser(String userId) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/taxis/disponibles/utilisateur/$userId'),
+    );
+    if (response.statusCode == 200) {
+      final List<dynamic> jsonList = jsonDecode(response.body);
+      return jsonList.map((json) => Taxi.fromJson(json)).toList();
+    } else if (response.statusCode == 404) {
+      return []; // Aucun taxi trouvé
+    } else {
+      throw Exception("❌ Erreur lors du chargement des taxis disponibles");
+    }
+  }
+
+  /// 🚕 Récupérer les taxis locaux dans une ville donnée
+  static Future<List<Taxi>> getLocalTaxisByLocation(String city) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/taxis/local?city=${Uri.encodeComponent(city)}'),
+    );
     if (response.statusCode == 200) {
       final List<dynamic> jsonList = jsonDecode(response.body);
       return jsonList.map((json) => Taxi.fromJson(json)).toList();
     } else {
-      throw Exception("Erreur lors du chargement des taxis locaux pour $location");
+      throw Exception("❌ Erreur lors du chargement des taxis locaux pour $city");
     }
   }
 
-  // ---------- RESERVER TAXI ----------
-  static Future<void> reserveTaxi({
+  /// 🚕 Réserver un taxi
+  /// - [userId] : identifiant utilisateur
+  /// - [taxiId] : identifiant taxi
+  /// - [lieuDepart] : lieu de départ
+  /// - [lieuArrivee] : destination
+  /// - [heureDepart] : heure prévue
+  static Future<Map<String, dynamic>> reserveTaxi({
     required String userId,
     required String taxiId,
-    required String dateReservation,
-    required String heureDepart,
     required String lieuDepart,
     required String lieuArrivee,
-    required int prix,
+    required String heureDepart,
   }) async {
     final response = await http.post(
-      Uri.parse('$baseUrl/taxi/reserve'),  // adapte cette URL selon ton backend
+      Uri.parse('$baseUrl/taxis/reserver'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({
-        'user_id': userId,
+        'utilisateur_id': userId,
         'taxi_id': taxiId,
-        'date_reservation': dateReservation,
-        'heure_depart': heureDepart,
         'lieu_depart': lieuDepart,
-        'lieu_arrivee': lieuArrivee,
-        'prix': prix,
+        'destination': lieuArrivee,
+        'heure': heureDepart,
       }),
     );
 
-    if (response.statusCode != 201) {
-      throw Exception('Erreur lors de la réservation du taxi');
+    if (response.statusCode == 201) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('❌ Erreur réservation taxi : ${response.body}');
     }
   }
 }

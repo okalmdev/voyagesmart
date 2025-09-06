@@ -15,31 +15,32 @@ class BusTripDetailsScreen extends StatefulWidget {
 class _BusTripDetailsScreenState extends State<BusTripDetailsScreen> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
-  final Set<int> selectedSeats = {};
+  final Set<String> selectedSeats = {}; // étiquettes A1, B2, etc.
 
   bool isLoading = false;
   bool showSeatSelection = false;
 
-  void _toggleSeat(int seatNumber) {
-    if (seatNumber > widget.trip.totalSeats) return;
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _phoneController.dispose();
+    super.dispose();
+  }
 
-    setState(() {
-      if (selectedSeats.contains(seatNumber)) {
-        selectedSeats.remove(seatNumber);
+  void _toggleSeat(String seatLabel) {
+    if (selectedSeats.contains(seatLabel)) {
+      setState(() => selectedSeats.remove(seatLabel));
+    } else {
+      if (selectedSeats.length < widget.trip.availableSeats) {
+        setState(() => selectedSeats.add(seatLabel));
       } else {
-        if (selectedSeats.length < widget.trip.availableSeats) {
-          selectedSeats.add(seatNumber);
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Vous ne pouvez sélectionner que ${widget.trip.availableSeats} place(s).',
-              ),
-            ),
-          );
-        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Vous ne pouvez sélectionner que ${widget.trip.availableSeats} siège(s).'),
+          ),
+        );
       }
-    });
+    }
   }
 
   Future<void> _confirmBooking() async {
@@ -63,27 +64,35 @@ class _BusTripDetailsScreenState extends State<BusTripDetailsScreen> {
     setState(() => isLoading = true);
 
     try {
-      // ✅ Correction : Passer les nouveaux paramètres requis
-      await ApiService.reserveBus(
-        tripId: widget.trip.id,
-        seats: selectedSeats.toList(),
-        userId: 'votre_user_id_ici', // ⚠️ REMPLACEZ PAR L'ID DE L'UTILISATEUR CONNECTÉ
-        pricePerSeat: widget.trip.price,
+      final reservation = await ApiService.reserveBus(
+        utilisateurId: 123, // TODO: remplacer par l'ID utilisateur réel
+        voyageId: int.parse(widget.trip.id),
+        dateReservation: DateTime.now().toIso8601String(),
+        numeroPlace: selectedSeats.toList(), // ✅ envoi d'une List<String>
+        prix: widget.trip.price * selectedSeats.length,
       );
 
       if (!mounted) return;
 
-      // Après une réservation réussie, la réponse est le nombre de sièges réservés (int)
-      // On peut maintenant passer les informations nécessaires à l'écran de confirmation
+      String? reservationId;
+      try {
+        final list = (reservation['reservations'] as List?) ?? [];
+        if (list.isNotEmpty && list.first is Map && list.first['id'] != null) {
+          reservationId = list.first['id'].toString();
+        }
+      } catch (_) {
+        reservationId = null;
+      }
+
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
           builder: (_) => BookingConfirmationScreen(
             trip: widget.trip,
-            selectedSeats: selectedSeats.toList(),
+            selectedSeats: selectedSeats.toList(), // List<String>
             fullName: fullName,
             phone: phone,
-            reservationId: 'N/A', // ⚠️ A voir si l'API renvoie un ID de réservation
+            reservationId: reservationId, // peut être null si l’API ne renvoie pas d’id
           ),
         ),
       );
@@ -97,15 +106,11 @@ class _BusTripDetailsScreenState extends State<BusTripDetailsScreen> {
     }
   }
 
-  Widget _buildSeat(int seatNumber) {
-    final isSelected = selectedSeats.contains(seatNumber);
-    // ⚠️ Note: Ce code de sélection de siège est basé sur le nombre de sièges disponibles.
-    // L'API devrait vous donner une liste des sièges déjà pris.
-    // Pour l'instant, on suppose que les 40 premiers sont dispo pour l'exemple
-    final isAvailable = seatNumber <= widget.trip.availableSeats;
+  Widget _buildSeat(String seatLabel, {bool isAvailable = true}) {
+    final isSelected = selectedSeats.contains(seatLabel);
 
     return GestureDetector(
-      onTap: isAvailable ? () => _toggleSeat(seatNumber) : null,
+      onTap: isAvailable ? () => _toggleSeat(seatLabel) : null,
       child: Container(
         margin: const EdgeInsets.all(4),
         decoration: BoxDecoration(
@@ -122,7 +127,7 @@ class _BusTripDetailsScreenState extends State<BusTripDetailsScreen> {
         ),
         alignment: Alignment.center,
         child: Text(
-          seatNumber.toString(),
+          seatLabel,
           style: TextStyle(
             color: isSelected ? Colors.white : Colors.black87,
             fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
@@ -132,18 +137,35 @@ class _BusTripDetailsScreenState extends State<BusTripDetailsScreen> {
     );
   }
 
+  /// Grille de sièges dynamique : 4 colonnes, nombre de rangées selon totalSeats.
   Widget _buildSeatGrid() {
+    final List<String> seatLabels = [];
+    const columns = 4;
+    final total = widget.trip.totalSeats;
+    final totalRows = (total / columns).ceil();
+
+    for (int r = 0; r < totalRows; r++) {
+      final letterCode = 'A'.codeUnitAt(0) + r; // A, B, C, ...
+      final rowLabel = String.fromCharCode(letterCode);
+      for (int c = 1; c <= columns; c++) {
+        final seatIndex = r * columns + c;
+        if (seatIndex <= total) {
+          seatLabels.add('$rowLabel$c'); // A1, A2, ...
+        }
+      }
+    }
+
     return GridView.builder(
       physics: const NeverScrollableScrollPhysics(),
       shrinkWrap: true,
-      itemCount: widget.trip.totalSeats,
+      itemCount: seatLabels.length,
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 4,
         childAspectRatio: 1.2,
         mainAxisSpacing: 8,
         crossAxisSpacing: 8,
       ),
-      itemBuilder: (context, index) => _buildSeat(index + 1),
+      itemBuilder: (context, index) => _buildSeat(seatLabels[index]),
     );
   }
 
@@ -201,7 +223,7 @@ class _BusTripDetailsScreenState extends State<BusTripDetailsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 🚍 Info Trajet
+            // Info Trajet
             Card(
               elevation: 3,
               shape: RoundedRectangleBorder(
@@ -223,16 +245,11 @@ class _BusTripDetailsScreenState extends State<BusTripDetailsScreen> {
                       ],
                     ),
                     const SizedBox(height: 16),
-                    // ✅ Correction des lignes d'affichage
                     _buildInfoRow('Départ:', '${widget.trip.departureCity} à ${widget.trip.formattedDepartureTime}'),
                     _buildInfoRow('Arrivée:', '${widget.trip.arrivalCity} à ${widget.trip.formattedArrivalTime}'),
                     _buildInfoRow('Date:', widget.trip.formattedDate),
                     _buildInfoRow('Durée:', widget.trip.duration),
-                    _buildInfoRow(
-                      'Places:',
-                      '${widget.trip.availableSeats} dispo / ${widget.trip.totalSeats}',
-                      isHighlighted: true,
-                    ),
+                    _buildInfoRow('Places:', '${widget.trip.availableSeats} dispo / ${widget.trip.totalSeats}', isHighlighted: true),
                   ],
                 ),
               ),
@@ -240,7 +257,7 @@ class _BusTripDetailsScreenState extends State<BusTripDetailsScreen> {
 
             const SizedBox(height: 24),
 
-            // 👤 Infos passager
+            // Infos passager
             const Text('Informations passager', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 12),
             TextField(controller: _nameController, decoration: _inputDecoration('Nom complet', Icons.person)),
@@ -249,7 +266,7 @@ class _BusTripDetailsScreenState extends State<BusTripDetailsScreen> {
 
             const SizedBox(height: 20),
 
-            // 💺 Sélection des sièges
+            // Sélection des sièges
             if (widget.trip.availableSeats > 0) ...[
               ElevatedButton(
                 onPressed: () => setState(() => showSeatSelection = !showSeatSelection),
@@ -257,10 +274,7 @@ class _BusTripDetailsScreenState extends State<BusTripDetailsScreen> {
                   backgroundColor: const Color(0xFF4CAF50),
                   padding: const EdgeInsets.symmetric(vertical: 12),
                 ),
-                child: Text(
-                  showSeatSelection ? 'Masquer les sièges' : 'Choisir des sièges',
-                  style: const TextStyle(fontSize: 16),
-                ),
+                child: Text(showSeatSelection ? 'Masquer les sièges' : 'Choisir des sièges', style: const TextStyle(fontSize: 16)),
               ),
               if (showSeatSelection) ...[
                 const SizedBox(height: 16),
@@ -270,17 +284,15 @@ class _BusTripDetailsScreenState extends State<BusTripDetailsScreen> {
                 if (selectedSeats.isNotEmpty) ...[
                   const SizedBox(height: 12),
                   Text('Sièges: ${selectedSeats.join(', ')}', style: const TextStyle(fontWeight: FontWeight.bold)),
-                  Text(
-                    'Total: $totalPrice FCFA',
-                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF4CAF50)),
-                  ),
+                  Text('Total: $totalPrice FCFA',
+                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF4CAF50))),
                 ],
               ],
             ],
 
             const SizedBox(height: 24),
 
-            // ✅ Bouton réservation
+            // Bouton réservation
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
